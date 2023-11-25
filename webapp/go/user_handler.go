@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -410,6 +411,15 @@ func verifyUserSession(c echo.Context) error {
 	return nil
 }
 
+var fallbackIconHash = sync.OnceValue(func() []byte {
+	image, err := os.ReadFile(fallbackImage)
+	if err != nil {
+		panic(err)
+	}
+	iconHashArray := sha256.Sum256(image)
+	return iconHashArray[:]
+})
+
 func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (User, error) {
 	themeModel := ThemeModel{}
 	if err := tx.GetContext(ctx, &themeModel, "SELECT * FROM themes WHERE user_id = ?", userModel.ID); err != nil {
@@ -421,12 +431,7 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 		if !errors.Is(err, sql.ErrNoRows) {
 			return User{}, err
 		}
-		image, err := os.ReadFile(fallbackImage)
-		if err != nil {
-			return User{}, err
-		}
-		iconHashArray := sha256.Sum256(image)
-		iconHash = iconHashArray[:]
+		iconHash = fallbackIconHash()
 	}
 
 	user := User{
