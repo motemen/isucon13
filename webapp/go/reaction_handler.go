@@ -68,45 +68,48 @@ func getReactionsHandler(c echo.Context) error {
 	}
 
 	livestreamIDs := make([]int64, len(reactionModels))
-	livestreamModels := make([]LivestreamModel, len(reactionModels))
+	livestreamModels := make([]LivestreamModel, 0)
 	livestreamByID := make(map[int64]Livestream)
 	for i := range reactionModels {
 		livestreamIDs[i] = reactionModels[i].LivestreamID
 	}
-	query, args, err := sqlx.In("SELECT * FROM livestreams WHERE id IN (?)", livestreamIDs)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to build query: "+err.Error())
-	}
-	err = tx.SelectContext(ctx, &livestreamModels, query, args...)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
-	}
-	for i := range livestreamModels {
-		livestreamByID[livestreamModels[i].ID], err = fillLivestreamResponse(livestreamModels[i])
+	if len(livestreamIDs) > 0 {
+		query, args, err := sqlx.In("SELECT * FROM livestreams WHERE id IN (?)", livestreamIDs)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill livestream: "+err.Error())
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to build query: "+err.Error())
 		}
-
+		err = tx.SelectContext(ctx, &livestreamModels, query, args...)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
+		}
+		for i := range livestreamModels {
+			livestreamByID[livestreamModels[i].ID], err = fillLivestreamResponse(ctx, tx, livestreamModels[i])
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill livestream: "+err.Error())
+			}
+		}
 	}
 
 	userIDs := make([]int64, len(reactionModels))
-	userModels := make([]UserModel, len(reactionModels))
+	userModels := make([]UserModel, 0)
 	userByID := make(map[int64]User)
 	for i := range reactionModels {
 		userIDs[i] = reactionModels[i].UserID
 	}
-	query, args, err = sqlx.In("SELECT * FROM users WHERE id IN (?)", userIDs)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to build query: "+err.Error())
-	}
-	err = tx.SelectContext(ctx, &userModels, query, args...)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get users: "+err.Error())
-	}
-	for i := range userModels {
-		userByID[userModels[i].ID], err = fillUserResponse(userModels[i])
+	if len(userIDs) > 0 {
+		query, args, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", userIDs)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill user: "+err.Error())
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to build query: "+err.Error())
+		}
+		err = tx.SelectContext(ctx, &userModels, query, args...)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get users: "+err.Error())
+		}
+		for i := range userModels {
+			userByID[userModels[i].ID], err = fillUserResponse(ctx, tx, userModels[i])
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill user: "+err.Error())
+			}
 		}
 	}
 
