@@ -80,9 +80,13 @@ func getStreamerThemeHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
 
-	themeModel := ThemeModel{}
-	if err := tx.GetContext(ctx, &themeModel, "SELECT * FROM themes WHERE user_id = ?", userModel.ID); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user theme: "+err.Error())
+	darkMode, err := redisClient.Get(ctx, redisThemeColorDarkKey(userModel.ID)).Bool()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
+	}
+	themeModel := ThemeModel{
+		UserID:   userModel.ID,
+		DarkMode: darkMode,
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -90,7 +94,7 @@ func getStreamerThemeHandler(c echo.Context) error {
 	}
 
 	theme := Theme{
-		ID:       themeModel.ID,
+		ID:       userModel.ID,
 		DarkMode: themeModel.DarkMode,
 	}
 

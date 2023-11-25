@@ -158,6 +158,26 @@ func initializeRedis(ctx context.Context) error {
 		}
 	}
 
+	userThemes := []struct {
+		UserID   int64 `db:"user_id"`
+		DarkMode bool  `db:"dark_mode"`
+	}{}
+
+	dbConn.SelectContext(
+		ctx,
+		&userThemes,
+		`
+		SELECT user_id, dark_mode FROM themes
+		`,
+	)
+
+	for _, uc := range userThemes {
+		err := redisClient.Set(ctx, redisThemeColorDarkKey(uc.UserID), uc.DarkMode, time.Duration(0)).Err()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
