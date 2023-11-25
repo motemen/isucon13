@@ -136,23 +136,47 @@ func initializeRedis(ctx context.Context) error {
 		return err
 	}
 
-	userComments := []struct {
+	userReactions := []struct {
 		UserID int64 `db:"user_id"`
 		Count  int64 `db:"count"`
 	}{}
-
-	dbConn.SelectContext(
+	err = dbConn.SelectContext(
 		ctx,
-		&userComments,
+		&userReactions,
 		`
 		SELECT u.id user_id, COUNT(*) count
 		FROM users u INNER JOIN livestreams l ON l.user_id = u.id INNER JOIN reactions r ON r.livestream_id = l.id
 		GROUP BY u.id
 		`,
 	)
+	if err != nil {
+		return err
+	}
+	for _, ur := range userReactions {
+		err := redisClient.Set(ctx, redisTotalReactionsKey(ur.UserID), ur.Count, time.Duration(0)).Err()
+		if err != nil {
+			return err
+		}
+	}
 
-	for _, uc := range userComments {
-		err := redisClient.Set(ctx, redisTotalReactionsKey(uc.UserID), uc.Count, time.Duration(0)).Err()
+	livestreamReactions := []struct {
+		LivestreamID int64 `db:"livestream_id"`
+		Count        int64 `db:"count"`
+	}{}
+	err = dbConn.SelectContext(
+		ctx,
+		&livestreamReactions,
+		`
+		SELECT l.id livestream_id, COUNT(*) count
+		FROM livestreams l INNER JOIN reactions r ON r.livestream_id = l.id
+		GROUP BY l.id
+		`,
+	)
+	if err != nil {
+		return err
+	}
+	for _, lr := range livestreamReactions {
+		err := redisClient.Set(ctx, redisTotalReactionsForLivestreamKey(lr.LivestreamID), lr.Count, time.Duration(0)).Err()
 		if err != nil {
 			return err
 		}
