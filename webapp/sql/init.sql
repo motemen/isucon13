@@ -24,6 +24,6 @@ ALTER TABLE `livecomments` auto_increment = 1;
 ALTER TABLE `livestreams` auto_increment = 1;
 ALTER TABLE `users` auto_increment = 1;
 
-ALTER TABLE `livesteam_tags`
+ALTER TABLE `livestream_tags`
 	ADD INDEX `idx_livestream_id` (`livestream_id`),
 	ADD UNIQUE `unique_tag_id_livestream_id` (`tag_id`, `livestream_id`);
