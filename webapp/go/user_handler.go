@@ -134,10 +134,19 @@ func postIconHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "failed to decode the request body as json")
 	}
 
+	var username string
+	if err := dbConn.GetContext(ctx, &username, "SELECT name FROM users WHERE id = ?", userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get username: "+err.Error())
+	}
+	if err := os.WriteFile("../public/icons/users/"+username+".jpg", req.Image, 0666); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to open file: "+err.Error())
+	}
+
 	tx, err := dbConn.BeginTxx(ctx, nil)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
 	}
+
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx, "DELETE FROM icons WHERE user_id = ?", userID); err != nil {
@@ -157,9 +166,10 @@ func postIconHandler(c echo.Context) error {
 	if err := tx.Commit(); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	}
+	_ = iconID
 
 	return c.JSON(http.StatusCreated, &PostIconResponse{
-		ID: iconID,
+		ID: userID,
 	})
 }
 
