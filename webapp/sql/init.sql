@@ -29,3 +29,5 @@ ALTER TABLE `users` auto_increment = 1;
 -- 	ADD UNIQUE `unique_tag_id_livestream_id` (`tag_id`, `livestream_id`);
 
 -- ALTER TABLE `themes` ADD INDEX `idx_user_id` (`user_id`);
+
+-- ALTER TABLE `ng_words` ADD INDEX `idx_user_id_livestream_id_created_at_desc` (`user_id`, `livestream_id`, `created_at` DESC);
