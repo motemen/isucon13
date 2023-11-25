@@ -135,10 +135,10 @@ func postIconHandler(c echo.Context) error {
 	}
 
 	var username string
-	if err := dbConn.SelectContext(ctx, &username, "SELECT name FROM users WHERE id = ?", userID); err != nil {
+	if err := dbConn.GetContext(ctx, &username, "SELECT name FROM users WHERE id = ?", userID); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get username: "+err.Error())
 	}
-	if err := os.WriteFile("../public/icons/users"+username+".jpg", req.Image, 0666); err != nil {
+	if err := os.WriteFile("../public/icons/users/"+username+".jpg", req.Image, 0666); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to open file: "+err.Error())
 	}
 
