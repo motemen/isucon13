@@ -275,7 +275,7 @@ func main() {
 	powerDNSSubdomainAddress = subdomainAddr
 
 	// HTTPサーバ起動
-	listenAddr := net.JoinHostPort("", strconv.Itoa(listenPort))
+	listenAddr := net.JoinHostPort("0.0.0.0", strconv.Itoa(listenPort))
 	if err := e.Start(listenAddr); err != nil {
 		e.Logger.Errorf("failed to start HTTP server: %v", err)
 		os.Exit(1)
