@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"errors"
 	"fmt"
 	"net/http"
