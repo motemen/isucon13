@@ -3,6 +3,8 @@
 set -eux
 cd $(dirname $0)
 
+rm -rf /home/isucon/webapp/public/icons/users/*.jpg
+
 if test -f /home/isucon/env.sh; then
 	. /home/isucon/env.sh
 fi
