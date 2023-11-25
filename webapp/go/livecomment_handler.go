@@ -235,6 +235,15 @@ func postLivecommentHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livecomment: "+err.Error())
 	}
 
+	err = redisClient.IncrBy(
+		ctx,
+		redisTotalTipsKey(userID),
+		req.Tip,
+	).Err()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to incr totalTips: "+err.Error())
+	}
+
 	livecommentID, err := rs.LastInsertId()
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get last inserted livecomment id: "+err.Error())

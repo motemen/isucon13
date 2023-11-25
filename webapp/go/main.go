@@ -4,6 +4,7 @@ package main
 // sqlx的な参考: https://jmoiron.github.io/sqlx/
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -20,6 +21,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	echolog "github.com/labstack/gommon/log"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -43,6 +45,8 @@ func init() {
 type InitializeResponse struct {
 	Language string `json:"language"`
 }
+
+var redisClient *redis.Client
 
 func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 	const (
@@ -193,6 +197,17 @@ func main() {
 	}
 	defer conn.Close()
 	dbConn = conn
+
+	// Redis接続
+	redisClient = redis.NewClient(&redis.Options{
+		Addr: "isu12:6379",
+	})
+	defer redisClient.Close()
+	err = redisClient.Ping(context.Background()).Err()
+	if err != nil {
+		e.Logger.Errorf("failed to connect redis: %v", err)
+		os.Exit(1)
+	}
 
 	subdomainAddr, ok := os.LookupEnv(powerDNSSubdomainAddressEnvKey)
 	if !ok {

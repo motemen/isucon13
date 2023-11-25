@@ -9,7 +9,7 @@ always:
 $(APP): webapp/go/*.go always
 	cd webapp/go && go get && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o ../../$(APP)
 
-deploy: $(APP) stop scp scp-sql start
+deploy: $(APP) stop scp scp-sql restart-redis start
 # deploy: stop reset-logs scp scp-sql scp-docker-compose start
 
 scp: $(APP)
@@ -48,3 +48,7 @@ start:
 	ssh isu13 "sudo systemctl start $(APP)-go.service" & \
 	wait
 
+# redis
+
+restart-redis:
+	ssh isu12 "sudo systemctl restart redis-server.service"

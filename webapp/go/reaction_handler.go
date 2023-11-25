@@ -138,6 +138,13 @@ func postReactionHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	}
 
+	err = redisClient.Incr(
+		ctx,
+		redisTotalReactionsKey(userID),
+	).Err()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to incr totalReactions: "+err.Error())
+	}
 	return c.JSON(http.StatusCreated, reaction)
 }
 
