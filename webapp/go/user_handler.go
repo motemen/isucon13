@@ -143,6 +143,7 @@ func postIconHandler(c echo.Context) error {
 	}
 
 	iconHash := sha256.Sum256(req.Image)
+	iconHashSlice := iconHash[:]
 	tx, err := dbConn.BeginTxx(ctx, nil)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
@@ -154,7 +155,7 @@ func postIconHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete old user icon: "+err.Error())
 	}
 
-	rs, err := tx.ExecContext(ctx, "INSERT INTO icons (user_id, image) VALUES (?, ?)", userID, iconHash)
+	rs, err := tx.ExecContext(ctx, "INSERT INTO icons (user_id, image) VALUES (?, ?)", userID, iconHashSlice)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert new user icon: "+err.Error())
 	}
@@ -415,7 +416,7 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 		return User{}, err
 	}
 
-	var iconHash [sha256.Size]byte
+	var iconHash []byte
 	if err := tx.GetContext(ctx, &iconHash, "SELECT image FROM icons WHERE user_id = ?", userModel.ID); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return User{}, err
@@ -424,7 +425,8 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 		if err != nil {
 			return User{}, err
 		}
-		iconHash = sha256.Sum256(image)
+		iconHashArray := sha256.Sum256(image)
+		iconHash = iconHashArray[:]
 	}
 
 	user := User{
