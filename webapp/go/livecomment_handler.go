@@ -103,11 +103,61 @@ func getLivecommentsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livecomments: "+err.Error())
 	}
 
+	livestreamIDs := make([]int64, len(livecommentModels))
+	livestreamModels := make([]LivestreamModel, 0)
+	livestreamByID := make(map[int64]Livestream)
+	for i := range livecommentModels {
+		livestreamIDs[i] = livecommentModels[i].LivestreamID
+	}
+	if len(livestreamIDs) > 0 {
+		query, args, err := sqlx.In("SELECT * FROM livestreams WHERE id IN (?)", livestreamIDs)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to build query: "+err.Error())
+		}
+		err = tx.SelectContext(ctx, &livestreamModels, query, args...)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
+		}
+		for i := range livestreamModels {
+			livestreamByID[livestreamModels[i].ID], err = fillLivestreamResponse(ctx, tx, livestreamModels[i])
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill livestream: "+err.Error())
+			}
+		}
+	}
+
+	userIDs := make([]int64, len(livecommentModels))
+	userModels := make([]UserModel, 0)
+	userByID := make(map[int64]User)
+	for i := range livecommentModels {
+		userIDs[i] = livecommentModels[i].UserID
+	}
+	if len(userIDs) > 0 {
+		query, args, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", userIDs)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to build query: "+err.Error())
+		}
+		err = tx.SelectContext(ctx, &userModels, query, args...)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get users: "+err.Error())
+		}
+		for i := range userModels {
+			userByID[userModels[i].ID], err = fillUserResponse(ctx, tx, userModels[i])
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill user: "+err.Error())
+			}
+		}
+	}
+
 	livecomments := make([]Livecomment, len(livecommentModels))
 	for i := range livecommentModels {
-		livecomment, err := fillLivecommentResponse(ctx, tx, livecommentModels[i])
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fil livecomments: "+err.Error())
+		livecomment := Livecomment{
+			ID:         livecommentModels[i].ID,
+			User:       userByID[livecommentModels[i].UserID],
+			Livestream: livestreamByID[livecommentModels[i].LivestreamID],
+			Comment:    livecommentModels[i].Comment,
+			Tip:        livecommentModels[i].Tip,
+			CreatedAt:  livecommentModels[i].CreatedAt,
 		}
 
 		livecomments[i] = livecomment
