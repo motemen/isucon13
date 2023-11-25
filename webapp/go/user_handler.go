@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -129,15 +130,28 @@ func postIconHandler(c echo.Context) error {
 	// existence already checked
 	userID := sess.Values[defaultUserIDKey].(int64)
 
+	var username string
+	if err := dbConn.SelectContext(ctx, &username, "SELECT name FROM users WHERE id = ?", userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get username: "+err.Error())
+	}
+
+	f, err := os.OpenFile("../public/icons/users"+username+".jpg", os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to open file: "+err.Error())
+	}
+	if _, err := io.Copy(f, c.Request().Body); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to copy file: "+err.Error())
+	}
+
 	var req *PostIconRequest
 	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "failed to decode the request body as json")
 	}
-
 	tx, err := dbConn.BeginTxx(ctx, nil)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
 	}
+
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx, "DELETE FROM icons WHERE user_id = ?", userID); err != nil {
@@ -157,9 +171,10 @@ func postIconHandler(c echo.Context) error {
 	if err := tx.Commit(); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	}
+	_ = iconID
 
 	return c.JSON(http.StatusCreated, &PostIconResponse{
-		ID: iconID,
+		ID: userID,
 	})
 }
 
