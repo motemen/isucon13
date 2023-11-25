@@ -9,7 +9,7 @@ always:
 $(APP): webapp/go/*.go always
 	cd webapp/go && go get && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o ../../$(APP)
 
-deploy: $(APP) stop scp scp-sql restart-redis start
+deploy: deploy-nginx $(APP) stop scp scp-sql restart-redis start
 # deploy: stop reset-logs scp scp-sql scp-docker-compose start
 
 scp: $(APP)
