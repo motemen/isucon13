@@ -86,6 +86,7 @@ type PostIconResponse struct {
 	ID int64 `json:"id"`
 }
 
+// Nginxに移したのでもう使ってない
 func getIconHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -156,20 +157,14 @@ func postIconHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete old user icon: "+err.Error())
 	}
 
-	rs, err := tx.ExecContext(ctx, "INSERT INTO icons (user_id, image) VALUES (?, ?)", userID, iconHashSlice)
-	if err != nil {
+	if _, err := tx.ExecContext(ctx, "INSERT INTO icons (user_id, image) VALUES (?, ?)", userID, iconHashSlice); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert new user icon: "+err.Error())
 	}
 
-	iconID, err := rs.LastInsertId()
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get last inserted icon id: "+err.Error())
-	}
 
 	if err := tx.Commit(); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	}
-	_ = iconID
 
 	return c.JSON(http.StatusCreated, &PostIconResponse{
 		ID: userID,
