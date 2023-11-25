@@ -30,6 +30,15 @@ scp-env:
 	scp ./env.sh isu13:/home/isucon/env.sh & \
 	wait
 
+scp-nginx:
+	ssh isu11 "sudo dd of=/etc/nginx/nginx.conf" < ./etc/nginx/nginx.conf
+	ssh isu11 "sudo dd of=/etc/nginx/sites-enabled/isupipe.conf" < ./etc/nginx/sites-enabled/isupipe.conf
+
+reload-nginx:
+	ssh isu11 "sudo systemctl reload nginx.service"
+
+deploy-nginx: scp-nginx reload-nginx
+
 restart:
 	ssh isu11 "sudo systemctl restart $(APP)-go.service" & \
 	ssh isu12 "sudo systemctl restart $(APP)-go.service" & \
