@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 )
 
 type LivestreamStatistics struct {
@@ -94,24 +95,14 @@ func getUserStatisticsHandler(c echo.Context) error {
 
 	var ranking UserRanking
 	for _, user := range users {
-		var reactions int64
-		query := `
-		SELECT COUNT(*) FROM users u
-		INNER JOIN livestreams l ON l.user_id = u.id
-		INNER JOIN reactions r ON r.livestream_id = l.id
-		WHERE u.id = ?`
-		if err := tx.GetContext(ctx, &reactions, query, user.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to count reactions: "+err.Error())
+		reactions, err := redisClient.Get(ctx, redisTotalReactionsKey(user.ID)).Int64()
+		if err != nil && !errors.Is(err, redis.Nil) {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get total reactions: "+err.Error())
 		}
 
-		var tips int64
-		query = `
-		SELECT IFNULL(SUM(l2.tip), 0) FROM users u
-		INNER JOIN livestreams l ON l.user_id = u.id	
-		INNER JOIN livecomments l2 ON l2.livestream_id = l.id
-		WHERE u.id = ?`
-		if err := tx.GetContext(ctx, &tips, query, user.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to count tips: "+err.Error())
+		tips, err := redisClient.Get(ctx, redisTotalTipsKey(user.ID)).Int64()
+		if err != nil && !errors.Is(err, redis.Nil) {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get total tips: "+err.Error())
 		}
 
 		score := reactions + tips

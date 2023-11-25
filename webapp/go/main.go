@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -117,10 +118,47 @@ func initializeHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
 	}
 
+	err := initializeRedis(c.Request().Context())
+	if err != nil {
+		c.Logger().Warnf("initializeRedis failed with err=%s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "initialize redis: "+err.Error())
+	}
+
 	c.Request().Header.Add("Content-Type", "application/json;charset=utf-8")
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "golang",
 	})
+}
+
+func initializeRedis(ctx context.Context) error {
+	err := redisClient.FlushAll(ctx).Err()
+	if err != nil {
+		return err
+	}
+
+	userComments := []struct {
+		UserID int64 `db:"user_id"`
+		Count  int64 `db:"count"`
+	}{}
+
+	dbConn.SelectContext(
+		ctx,
+		&userComments,
+		`
+		SELECT u.id user_id, COUNT(*) count
+		FROM users u INNER JOIN livestreams l ON l.user_id = u.id INNER JOIN reactions r ON r.livestream_id = l.id
+		GROUP BY u.id
+		`,
+	)
+
+	for _, uc := range userComments {
+		err := redisClient.Set(ctx, redisTotalReactionsKey(uc.UserID), uc.Count, time.Duration(0)).Err()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func main() {
