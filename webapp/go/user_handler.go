@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"github.com/goccy/go-json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"os/exec"
 	"sync"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
@@ -118,6 +119,10 @@ func getIconHandler(c echo.Context) error {
 	return c.Blob(http.StatusOK, "image/jpeg", image)
 }
 
+func redisIconHashKey(userID int64) string {
+	return fmt.Sprintf("icon_hash:%d", userID)
+}
+
 func postIconHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -146,24 +151,9 @@ func postIconHandler(c echo.Context) error {
 
 	iconHash := sha256.Sum256(req.Image)
 	iconHashSlice := iconHash[:]
-	tx, err := dbConn.BeginTxx(ctx, nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
-	}
 
-	defer tx.Rollback()
-
-	if _, err := tx.ExecContext(ctx, "DELETE FROM icons WHERE user_id = ?", userID); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete old user icon: "+err.Error())
-	}
-
-	if _, err := tx.ExecContext(ctx, "INSERT INTO icons (user_id, image) VALUES (?, ?)", userID, iconHashSlice); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert new user icon: "+err.Error())
-	}
-
-
-	if err := tx.Commit(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
+	if ret := redisClient.Set(ctx, redisIconHashKey(userID), iconHashSlice, time.Duration(0)); ret.Err() != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to set icon hash into redis: "+ret.Err().Error())
 	}
 
 	return c.JSON(http.StatusCreated, &PostIconResponse{
@@ -421,11 +411,8 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 		DarkMode: darkMode,
 	}
 
-	var iconHash []byte
-	if err := tx.GetContext(ctx, &iconHash, "SELECT image FROM icons WHERE user_id = ?", userModel.ID); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return User{}, err
-		}
+	iconHash, err := redisClient.Get(ctx, redisIconHashKey(userModel.ID)).Bytes()
+	if err != nil {
 		iconHash = fallbackIconHash()
 	}
 
