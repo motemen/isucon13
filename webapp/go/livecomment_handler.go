@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"errors"
 	"fmt"
 	"net/http"
