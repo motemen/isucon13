@@ -226,14 +226,14 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 	// ランク算出
 	var ranking LivestreamRanking
 	for _, livestream := range livestreams {
-		var reactions int64
-		if err := tx.GetContext(ctx, &reactions, "SELECT COUNT(*) FROM livestreams l INNER JOIN reactions r ON l.id = r.livestream_id WHERE l.id = ?", livestream.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to count reactions: "+err.Error())
+		reactions, err := redisClient.Get(ctx, redisTotalReactionsForLivestreamKey(livestream.ID)).Int64()
+		if err != nil && !errors.Is(err, redis.Nil) {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get total reactions for livestream: "+err.Error())
 		}
 
-		var totalTips int64
-		if err := tx.GetContext(ctx, &totalTips, "SELECT IFNULL(SUM(l2.tip), 0) FROM livestreams l INNER JOIN livecomments l2 ON l.id = l2.livestream_id WHERE l.id = ?", livestream.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to count tips: "+err.Error())
+		totalTips, err := redisClient.Get(ctx, redisTotalTipsForLivestreamKey(livestream.ID)).Int64()
+		if err != nil && !errors.Is(err, redis.Nil) {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get total tips for livestream: "+err.Error())
 		}
 
 		score := reactions + totalTips

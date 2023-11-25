@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"github.com/goccy/go-json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo-contrib/session"
@@ -145,6 +146,15 @@ func postReactionHandler(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to incr totalReactions: "+err.Error())
 	}
+
+	err = redisClient.Incr(
+		ctx,
+		redisTotalReactionsForLivestreamKey(int64(livestreamID)),
+	).Err()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to incr totalReactionsForLivestream: "+err.Error())
+	}
+
 	return c.JSON(http.StatusCreated, reaction)
 }
 

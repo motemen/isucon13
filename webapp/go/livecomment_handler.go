@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
-	"github.com/goccy/go-json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo-contrib/session"
@@ -242,6 +243,15 @@ func postLivecommentHandler(c echo.Context) error {
 	).Err()
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to incr totalTips: "+err.Error())
+	}
+
+	err = redisClient.IncrBy(
+		ctx,
+		redisTotalTipsForLivestreamKey(int64(livestreamID)),
+		req.Tip,
+	).Err()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to incr totalTipsForLivestream: "+err.Error())
 	}
 
 	livecommentID, err := rs.LastInsertId()
