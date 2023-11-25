@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -106,34 +107,48 @@ func reserveLivestreamHandler(c echo.Context) error {
 	// 予約枠をみて、予約が可能か調べる
 	// NOTE: 並列な予約のoverbooking防止にFOR UPDATEが必要
 	var slots []*ReservationSlotModel
-	if err := tx.SelectContext(ctx, &slots, "SELECT * FROM reservation_slots WHERE start_at >= ? AND end_at <= ? FOR UPDATE", req.StartAt, req.EndAt); err != nil {
+
+	startId := math.Floor(float64(req.StartAt-1700874000)/3600) + 1
+	endId := math.Floor(float64(req.EndAt-1700877400)/3600) + 1
+
+	slotIds := []int64{}
+	for i := startId; i <= endId; i++ {
+		slotIds = append(slotIds, int64(i))
+	}
+
+	sql, args, err := sqlx.In("SELECT * FROM reservation_slots WHERE id IN (?) FOR UPDATE", slotIds)
+	if err != nil {
+		c.Logger().Warnf("sqlx.In: %+v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to construct IN query: "+err.Error())
+	}
+
+	if err := tx.SelectContext(ctx, &slots, sql, args...); err != nil {
 		c.Logger().Warnf("予約枠一覧取得でエラー発生: %+v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get reservation_slots: "+err.Error())
 	}
 	for _, slot := range slots {
-		var count int
-		if err := tx.GetContext(ctx, &count, "SELECT slot FROM reservation_slots WHERE start_at = ? AND end_at = ?", slot.StartAt, slot.EndAt); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get reservation_slots: "+err.Error())
-		}
 		c.Logger().Infof("%d ~ %d予約枠の残数 = %d\n", slot.StartAt, slot.EndAt, slot.Slot)
-		if count < 1 {
+		if slot.Slot < 1 {
 			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("予約期間 %d ~ %dに対して、予約区間 %d ~ %dが予約できません", termStartAt.Unix(), termEndAt.Unix(), req.StartAt, req.EndAt))
 		}
 	}
 
-	var (
-		livestreamModel = &LivestreamModel{
-			UserID:       int64(userID),
-			Title:        req.Title,
-			Description:  req.Description,
-			PlaylistUrl:  req.PlaylistUrl,
-			ThumbnailUrl: req.ThumbnailUrl,
-			StartAt:      req.StartAt,
-			EndAt:        req.EndAt,
-		}
-	)
+	livestreamModel := &LivestreamModel{
+		UserID:       int64(userID),
+		Title:        req.Title,
+		Description:  req.Description,
+		PlaylistUrl:  req.PlaylistUrl,
+		ThumbnailUrl: req.ThumbnailUrl,
+		StartAt:      req.StartAt,
+		EndAt:        req.EndAt,
+	}
 
-	if _, err := tx.ExecContext(ctx, "UPDATE reservation_slots SET slot = slot - 1 WHERE start_at >= ? AND end_at <= ?", req.StartAt, req.EndAt); err != nil {
+	sql, args, err = sqlx.In("UPDATE reservation_slots SET slot = slot - 1 WHERE id IN (?)", slotIds)
+	if err != nil {
+		c.Logger().Warnf("sqlx.In: %+v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to construct IN query: "+err.Error())
+	}
+	if _, err := tx.ExecContext(ctx, sql, args...); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update reservation_slot: "+err.Error())
 	}
 
